@@ -10,17 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/kivy/buildozer:latest
-      env:
-        BUILDOZER_ALLOW_ROOT: "1"
-        CI: "true"
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Fix Directory Permissions
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Build Android APK
         run: |
-          buildozer -v --warn-on-root=0 android debug
+          printf 'y\n' | buildozer -v android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

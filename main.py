@@ -1,212 +1,204 @@
 import hashlib
 import datetime
+import urllib.request
+import json
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
+from kivy.uix.textinput import TextInput
+from kivy.uix.switch import Switch
 from kivy.clock import Clock
 from kivy.core.window import Window
 
-Window.clearcolor = (0.06, 0.08, 0.12, 1)
+FIREBASE_URL = "https://sgod-vip-license-default-rtdb.firebaseio.com/keys/"
 
-class SmartPatternEngine(App):
+class SGodApp(App):
     def build(self):
-        self.history = []
+        Window.clearcolor = (0.05, 0.05, 0.07, 1)
+        self.is_authenticated = False
         self.current_period = ""
-        self.cached_predictions = {}
+        self.scan_count = 0
+        self.is_scanning = False
+        self.radar_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        self.frame_idx = 0
 
-        main_layout = BoxLayout(orientation='vertical', padding=16, spacing=10)
+        self.root = BoxLayout(orientation='vertical', padding=14, spacing=10)
+        self.show_login_screen()
+        return self.root
 
-        t = Label(
-            text="[b][color=#FFD700]OKWIN / DMWIN SMART AI[/color][/b]",
-            markup=True,
-            font_size="20sp",
-            size_hint=(1, 0.1)
-        )
+    def show_login_screen(self):
+        self.root.clear_widgets()
 
-        self.p = Label(
-            text="Syncing OKWin IST Period...",
-            markup=True,
-            font_size="16sp",
-            size_hint=(1, 0.08),
-            color=(0.2, 0.9, 1, 1)
-        )
-
-        self.tm = Label(
-            text="Timer: 00:00",
+        title = Label(
+            text="[b][color=#FF3366]⚡ S_GOD SECURITY AUTH ⚡[/color][/b]",
             markup=True,
             font_size="17sp",
-            size_hint=(1, 0.08),
-            color=(1, 1, 1, 1)
+            size_hint=(1, 0.2)
         )
 
-        self.r = Label(
-            text="[b]WAITING FOR PERIOD SYNC...[/b]",
+        self.key_input = TextInput(
+            hint_text="ENTER VIP ACCESS KEY",
+            multiline=False,
+            size_hint=(1, 0.15),
+            font_size="14sp",
+            halign="center",
+            background_color=(0.12, 0.14, 0.18, 1),
+            foreground_color=(1, 1, 1, 1)
+        )
+
+        self.lbl_auth_status = Label(
+            text="[color=#AAAAAA]Key verification required[/color]",
             markup=True,
-            font_size="17sp",
-            size_hint=(1, 0.44),
-            color=(0.95, 0.95, 0.95, 1)
+            font_size="12sp",
+            size_hint=(1, 0.15)
         )
 
-        self.hist_label = Label(
-            text="Recent History: [ Empty ]",
+        btn_verify = Button(
+            text="[b]🔓 UNLOCK MOD[/b]",
             markup=True,
-            font_size="13sp",
-            size_hint=(1, 0.08),
-            color=(0.8, 0.8, 0.8, 1)
-        )
-
-        btn_layout = GridLayout(cols=3, spacing=8, size_hint=(1, 0.22))
-
-        btn_big = Button(
-            text="+ REAL BIG",
+            size_hint=(1, 0.18),
             background_normal="",
-            background_color=(0.9, 0.65, 0, 1),
+            background_color=(0.0, 0.75, 0.40, 1)
+        )
+        btn_verify.bind(on_release=lambda x: self.verify_key())
+
+        self.root.add_widget(title)
+        self.root.add_widget(self.key_input)
+        self.root.add_widget(self.lbl_auth_status)
+        self.root.add_widget(btn_verify)
+
+    def verify_key(self):
+        user_key = self.key_input.text.strip().upper()
+        if not user_key:
+            self.lbl_auth_status.text = "[color=#FF3344]Please enter a valid key![/color]"
+            return
+
+        self.lbl_auth_status.text = "[color=#00E5FF]Verifying with Server...[/color]"
+        Clock.schedule_once(lambda dt: self._check_server(user_key), 0.2)
+
+    def _check_server(self, key):
+        try:
+            req = urllib.request.Request(f"{FIREBASE_URL}{key}.json")
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode())
+
+            if data and data.get("status") == "active":
+                exp_str = data.get("expires_at")
+                exp_dt = datetime.datetime.strptime(exp_str, '%Y-%m-%d %H:%M:%S')
+                
+                if datetime.datetime.utcnow() < exp_dt:
+                    self.is_authenticated = True
+                    self.show_main_dashboard()
+                else:
+                    self.lbl_auth_status.text = "[color=#FF3344]KEY EXPIRED! Contact Admin.[/color]"
+            else:
+                self.lbl_auth_status.text = "[color=#FF3344]INVALID KEY! Access Denied.[/color]"
+        except Exception:
+            self.lbl_auth_status.text = "[color=#FF3344]Network / Verification Error[/color]"
+
+    def show_main_dashboard(self):
+        self.root.clear_widgets()
+
+        lbl_mod_name = Label(
+            text="[b][color=#FF3366]⚡ S_GOD MOD [VIP ACTIVE] ⚡[/color][/b]",
+            markup=True,
             font_size="15sp",
-            bold=True
+            size_hint=(1, 0.12)
         )
-        btn_big.bind(on_release=lambda x: self.add_real_result(1))
 
-        btn_small = Button(
-            text="+ REAL SMALL",
+        toggle_box = BoxLayout(orientation='vertical', spacing=4, size_hint=(1, 0.20))
+        r1 = BoxLayout(orientation='horizontal', size_hint=(1, 0.5))
+        r1.add_widget(Label(text="[b]WINGO SERVER BYPASS[/b]", markup=True, font_size="12sp"))
+        r1.add_widget(Switch(active=True))
+
+        r2 = BoxLayout(orientation='horizontal', size_hint=(1, 0.5))
+        r2.add_widget(Label(text="[b]AI AUTO SNIFFER[/b]", markup=True, font_size="12sp"))
+        r2.add_widget(Switch(active=True))
+
+        toggle_box.add_widget(r1)
+        toggle_box.add_widget(r2)
+
+        self.lbl_target = Label(
+            text="[b][color=#00FF66]MOD READY[/color][/b]\n[size=12sp]Awaiting Next Draw[/size]",
+            markup=True,
+            font_size="18sp",
+            halign="center",
+            size_hint=(1, 0.38)
+        )
+
+        btn_layout = GridLayout(cols=2, spacing=8, size_hint=(1, 0.20))
+        btn_scan = Button(
+            text="[b]🔍 FORCE SCAN[/b]",
+            markup=True,
             background_normal="",
-            background_color=(0.1, 0.6, 0.9, 1),
-            font_size="15sp",
-            bold=True
+            background_color=(0.10, 0.60, 1.0, 1)
         )
-        btn_small.bind(on_release=lambda x: self.add_real_result(0))
+        btn_scan.bind(on_release=lambda x: self.trigger_radar_scan())
 
-        btn_reset = Button(
-            text="CLEAR",
+        btn_lock = Button(
+            text="[b]🔒 LOCK[/b]",
+            markup=True,
             background_normal="",
-            background_color=(0.5, 0.2, 0.2, 1),
-            font_size="14sp"
+            background_color=(0.3, 0.3, 0.35, 1)
         )
-        btn_reset.bind(on_release=lambda x: self.clear_history())
+        btn_lock.bind(on_release=lambda x: self.show_login_screen())
 
-        btn_layout.add_widget(btn_big)
-        btn_layout.add_widget(btn_small)
-        btn_layout.add_widget(btn_reset)
+        btn_layout.add_widget(btn_scan)
+        btn_layout.add_widget(btn_lock)
 
-        for w in [t, self.p, self.tm, self.r, self.hist_label, btn_layout]:
-            main_layout.add_widget(w)
+        self.root.add_widget(lbl_mod_name)
+        self.root.add_widget(toggle_box)
+        self.root.add_widget(self.lbl_target)
+        self.root.add_widget(btn_layout)
 
         Clock.schedule_interval(self.tick, 1)
-        return main_layout
-
-    def get_ist_time(self):
-        utc_now = datetime.datetime.now(datetime.timezone.utc)
-        ist_tz = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
-        return utc_now.astimezone(ist_tz)
-
-    def get_okwin_period(self):
-        ist_now = self.get_ist_time()
-        total_minutes = (ist_now.hour * 60) + ist_now.minute + 1
-        date_str = ist_now.strftime('%Y%m%d')
-        return f"{date_str}01000{total_minutes:04d}"
-
-    def add_real_result(self, val):
-        self.history.append(val)
-        if len(self.history) > 12:
-            self.history.pop(0)
-        self.update_history_ui()
-        self.calc_advanced_prediction(self.current_period, force=True)
-
-    def clear_history(self):
-        self.history = []
-        self.update_history_ui()
-        self.calc_advanced_prediction(self.current_period, force=True)
-
-    def update_history_ui(self):
-        if not self.history:
-            self.hist_label.text = "Recent History: [ Empty ]"
-            return
-        tags = ["[color=#ffcc00]B[/color]" if x == 1 else "[color=#00e1ff]S[/color]" for x in self.history]
-        self.hist_label.text = f"Recent History ({len(self.history)}): " + " - ".join(tags)
 
     def tick(self, dt):
-        ist_now = self.get_ist_time()
-        seconds_left = 60 - ist_now.second
-        self.tm.text = f"Round Timer: [color=#ffbb00]00:{seconds_left:02d}s[/color]"
+        if not self.is_authenticated:
+            return
+        utc_now = datetime.datetime.utcnow()
+        ist_now = utc_now + datetime.timedelta(hours=5, minutes=30)
+        total_mins = (ist_now.hour * 60) + ist_now.minute + 1
+        period = f"{ist_now.strftime('%Y%m%d')}01000{total_mins:04d}"
 
-        period = self.get_okwin_period()
         if period != self.current_period:
             self.current_period = period
-            self.p.text = f"[b]Live Period:[/b] [color=#00ffea]{self.current_period}[/color]"
-            self.calc_advanced_prediction(period)
+            self.trigger_radar_scan()
 
-    def calc_advanced_prediction(self, period, force=False):
+    def trigger_radar_scan(self):
+        if self.is_scanning or not self.is_authenticated:
+            return
+        self.is_scanning = True
+        self.scan_count = 0
+        Clock.schedule_interval(self._animate_radar, 0.08)
+
+    def _animate_radar(self, dt):
+        self.scan_count += 1
+        self.frame_idx = (self.frame_idx + 1) % len(self.radar_frames)
+        spin_char = self.radar_frames[self.frame_idx]
+        
+        self.lbl_target.text = f"[b][color=#FF1744]{spin_char} ANALYZING PERIOD... {spin_char}[/color][/b]"
+
+        if self.scan_count >= 20:
+            Clock.unschedule(self._animate_radar)
+            self.is_scanning = False
+            self.show_prediction_result(self.current_period)
+
+    def show_prediction_result(self, period):
         if not period:
             return
+        seed = int(hashlib.sha256((period + "VIP_KEY").encode('utf-8')).hexdigest()[:6], 16)
+        num = seed % 10
+        size = "BIG" if num >= 5 else "SMALL"
+        color = "GREEN" if num in [1, 3, 7, 9] else "RED"
 
-        if force or (period not in self.cached_predictions):
-            history_len = len(self.history)
-            
-            if history_len < 3:
-                seed = (period + "SALT_V2").encode('utf-8')
-                val = int(hashlib.sha256(seed).hexdigest()[:8], 16)
-                size = "BIG" if (val % 2 == 0) else "SMALL"
-                conf = 50
-                strategy_name = "Base Initialization"
-            else:
-                transitions = {'00': 0, '01': 0, '10': 0, '11': 0}
-                for i in range(history_len - 1):
-                    pair = f"{self.history[i]}{self.history[i+1]}"
-                    transitions[pair] = transitions.get(pair, 0) + 1
-                
-                last_state = str(self.history[-1])
-                prob_to_small = transitions.get(last_state + '0', 0)
-                prob_to_big = transitions.get(last_state + '1', 0)
-                total_trans = prob_to_small + prob_to_big
-
-                weights = [0.1, 0.2, 0.3, 0.4] if history_len >= 4 else [0.2, 0.3, 0.5]
-                recent_samples = self.history[-len(weights):]
-                weighted_sum = sum(w * val for w, val in zip(weights, recent_samples))
-
-                if total_trans > 0 and prob_to_big != prob_to_small:
-                    if prob_to_big > prob_to_small:
-                        size = "BIG"
-                        conf = int(50 + (prob_to_big / total_trans) * 15)
-                    else:
-                        size = "SMALL"
-                        conf = int(50 + (prob_to_small / total_trans) * 15)
-                    strategy_name = "Markov Transition Flow"
-                else:
-                    size = "BIG" if weighted_sum >= 0.5 else "SMALL"
-                    conf = int(50 + abs(weighted_sum - 0.5) * 20)
-                    strategy_name = "Weighted Moving Trend"
-
-            num_list = [5, 6, 7, 8, 9] if size == "BIG" else [0, 1, 2, 3, 4]
-            p_seed = int(hashlib.md5(period.encode('utf-8')).hexdigest()[:6], 16)
-            num = num_list[p_seed % len(num_list)]
-
-            if num in [1, 3, 7, 9]:
-                color = "[color=#00ff66]GREEN 🟢[/color]"
-            elif num in [2, 4, 6, 8]:
-                color = "[color=#ff3333]RED 🔴[/color]"
-            elif num == 0:
-                color = "[color=#ff3333]RED[/color] + [color=#cc33ff]VIOLET 🟣[/color]"
-            else:
-                color = "[color=#00ff66]GREEN[/color] + [color=#cc33ff]VIOLET 🟣[/color]"
-
-            self.cached_predictions[period] = {
-                "size": size,
-                "num": num,
-                "color": color,
-                "conf": conf,
-                "strategy": strategy_name
-            }
-
-        d = self.cached_predictions[period]
-        self.r.text = (
-            f"[b]FORECAST RESULT (LIVE)[/b]\n\n"
-            f"Prediction: [color=#ffff00][b]{d['size']}[/b][/color]\n"
-            f"Target Number: [color=#00ffff][b]{d['num']}[/b][/color]\n"
-            f"Color Signal: {d['color']}\n"
-            f"Engine Model: [color=#00ff88]{d['strategy']}[/color]\n"
-            f"Statistical Bias: [color=#ffbb00]{d['conf']}%[/color]"
+        self.lbl_target.text = (
+            f"[size=12sp][color=#00E5FF]PERIOD: {period[-4:]}[/color][/size]\n"
+            f"[size=44sp][b][color=#FFFFFF]{num}[/color][/b][/size]\n"
+            f"[size=14sp][b]{size}[/b]  |  {color}[/size]"
         )
 
 if __name__ == '__main__':
-    SmartPatternEngine().run()
+    SGodApp().run()
